@@ -12,7 +12,7 @@ def save_tgs(lottie, filepath):
         out.write(json.dumps(lottie, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
 
 
-paths = sys.argv[1:]
+paths = ["./Deltarune/Other/spamton_fortnite_cutted.gif"] #sys.argv[1:]
 print(paths)
 
 for path in paths:
