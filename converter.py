@@ -1,204 +1,211 @@
-DEBUG = False
-
-from enum import Enum
+from dataclasses import dataclass
 from collections import defaultdict
+from typing import Optional
 
 import numpy as np
+from scipy import ndimage
 
-if DEBUG:
-    import matplotlib.pyplot as plt  #used for contour debug
+from contour_generator import generate_contours
 
-import templates
+SourceAnimationType = list[tuple[float, np.ndarray]]
+PosType = tuple[int, int]
+ColorType = tuple[int, int, int, int]
+ShapeType = frozenset[PosType]
 
 
-class Direction(Enum):
-    UP = (-1, 0)
-    RT = (0, 1)
-    DN = (1, 0)
-    LT = (0, -1)
+def point_square_dist(a: PosType, b: PosType):
+    return sum((i - j)**2 for i, j in zip(a, b))
 
-    def __radd__(self, other: tuple[int, int]) -> tuple[int, int]:
-        x, y = self.value
-        return (other[0] + x, other[1] + y)
 
-    def turn_right(self):
-        return {
-            self.UP: self.RT,
-            self.RT: self.DN,
-            self.DN: self.LT,
-            self.LT: self.UP,
-        }[self]
+def count_changes(elements: list) -> int:
+    counter = 0
+    prev, *elements = elements
 
-    def turn_left(self):
-        return {
-            self.UP: self.LT,
-            self.RT: self.UP,
-            self.DN: self.RT,
-            self.LT: self.DN,
-        }[self]
+    for element in elements:
+        if prev != element:
+            counter += 1
+        prev = element
+    return counter
 
-    def get_next_left(self, dirs: set):
-        bdir = self.turn_left()
-        while bdir not in dirs:
-            bdir = bdir.turn_right()
-        return bdir
 
-    def get_next_right(self, dirs: set):
-        bdir = self.turn_right()
-        while bdir not in dirs:
-            bdir = bdir.turn_left()
-        return bdir
+def lottify_value(value_frames: list, time_shift: float, durations: list[float]):
+    last_value = None
+    keyframes = []
+    current_time = time_shift
 
-    def get_closest_dir(self, dirs: set, priority: str = "left"):
-        if not dirs:
-            raise ValueError("Something went terribly wrong in borders generation")
-        if priority == "left":
-            bdir = self.get_next_left(dirs)
-        else:
-            bdir = self.get_next_right(dirs)
-        dirs.remove(bdir)
-        return bdir
+    for (current_value, frame_duration) in zip(value_frames, durations):
+        if current_value is not None and current_value != last_value:
+            keyframes.append((current_time, current_value))
+        
+        current_time += frame_duration
     
-    def get_next_dir(self, borders, point, priority: str = "left"):
-        dirs = borders[point]
-        dir_now = self.get_closest_dir(dirs, priority)
-        if not dirs:
-            del borders[point]
-        return dir_now
+    if len(keyframes) == 1:
+        return 
 
 
-def add_zeros_frame(claster: np.ndarray) -> np.ndarray:
-    xi, yi = claster.shape
-    claster = np.concatenate([claster, np.zeros([xi, 1])], axis=1)
-    return np.concatenate([claster, np.zeros([1, yi + 1])])
+@dataclass(eq=True, frozen=True)
+class FormPosColor:
+    position: PosType
+    color: ColorType
+
+    def check_diff(self, other: "FormPosColor"):
+        dist = point_square_dist(self.position, other.position)
+
+        return (
+            dist != 0,  # if positions are equal, difference is less
+            dist if self.color == other.color else float("inf"),
+            dist,
+        )
 
 
-def draw_debug_borders(borders: dict[tuple[int, int], set[Direction]]):
-    for i, j in borders.items():
-        for d in j:
-            plt.arrow(*i[::-1], *np.array(d.value[::-1]) * 0.5, width=0.05)
-    plt.gca().invert_yaxis()
-    plt.axis('equal')
-    plt.grid()
+FrameShapesType = defaultdict[ShapeType, set[FormPosColor]]
+FramesType = list[set[FormPosColor]]
+AnimationShapesType = dict[ShapeType, FramesType]
+ChainFramesType = list[Optional[FormPosColor]]
 
 
-def generate_borders(claster: np.ndarray):
-    shift = (0.5, 0.5)
-    borders: dict[tuple[int, int], set[Direction]] = defaultdict(set)
-    pixels = np.transpose(claster.nonzero())
+class Chain:
+    def __init__(self, keyframe_shift: int, first_visible_frame: FormPosColor):
+        self.keyframe_shift = keyframe_shift
+        self.frames: ChainFramesType = [first_visible_frame]
+        self.last_visible_frame = first_visible_frame
 
-    for pixel in pixels:
-        for idir in Direction:
-            ax, ay = adjacent = pixel + idir.value
-            if claster[ax, ay]:
-                continue
-            bdir = idir.turn_right()
-            corner = ((pixel + adjacent) - np.array(bdir.value)) / 2
-            start = tuple(map(int, corner + shift))
-            borders[start].add(bdir)  #type: ignore
-
-    if DEBUG:
-        draw_debug_borders(borders)
-    return borders
-
-
-def generate_cycle(borders: dict[tuple[int, int], set[Direction]]):
-    try:
-        start = point_now = next(iter(borders))
-    except StopIteration:
-        return None
-
-    dir_now = last_dir = Direction.RT.get_next_dir(borders, start)
-    point_now += dir_now
-    cycle = [start, point_now]
-
-    while start != point_now:
-        dir_now = dir_now.get_next_dir(borders, point_now)
-        point_now += dir_now
-
-        if last_dir == dir_now:
-            cycle[-1] = point_now
+    def add_closest_element(self, elements: list[FormPosColor]) -> Optional[FormPosColor]:
+        if elements:
+            new_element = min(elements, key=self.last_visible_frame.check_diff)
+            self.last_visible_frame = new_element
         else:
-            cycle.append(point_now)
+            new_element = None
 
-        last_dir = dir_now
+        self.frames.append(new_element)
 
-    return cycle
+    def count_frames(self):
+        frames: list[FormPosColor] = list(filter(bool, self.frames))
 
+        opacity_frames = count_changes(map(bool, self.frames))
+        position_frames = count_changes(i.position for i in frames)
+        color_frames = count_changes(i.color for i in frames)
 
-def generate_contours(claster: np.ndarray):
-    borders = generate_borders(claster)
-    cycles: list[list[tuple[int, int]]] = []
+        return opacity_frames * 2 + position_frames * 3 + color_frames * 4
 
-    while True:
-        cycle = generate_cycle(borders)
-        if not cycle:
-            break
-        if DEBUG:
-            plt.plot(*tuple(zip(*cycle))[::-1], marker="o")
-        cycles.append(cycle)
+    def clean_variants(self, frames: FramesType):
+        for element, frame in zip(self.frames, frames):
+            if element:
+                frame.remove(element)
 
-    if DEBUG:
-        plt.show()
-
-    return cycles
+    def generate_lottie_group(self, shape: ShapeType, durations: list[float]):
+        ...
 
 
-def get_colors(pixels: np.ndarray):
+def add_zeros_frame(image: np.ndarray) -> np.ndarray:
+    xi, yi = image.shape
+    image = np.concatenate([image, np.zeros([xi, 1])], axis=1)
+    return np.concatenate([image, np.zeros([1, yi + 1])])
+
+
+def get_frame_colors(pixels: np.ndarray):
     colors = np.unique(pixels, axis=0)
     return colors[colors[:, -1] != 0]
 
 
-def generate_shift_scale(x: int, y: int):
-    scale = 512 / max(x, y)
-    if x > y:
-        shift = [(1 - y / x) * 256, 0.0]
-    else:
-        shift = [0.0, (1 - x / y) * 256]
-    return shift, scale
+def normalize_shape(shape: np.ndarray) -> tuple[frozenset[PosType], PosType]:
+    coords = shape.nonzero()
+    upper_left_corner = tuple(np.min(coords, axis=1))
+    pixels = np.transpose(coords) - upper_left_corner
+    return frozenset(map(tuple, pixels)), upper_left_corner
 
 
-def convert_color_format(color: np.ndarray):
-    return (color[:3] / 255).tolist()
+def extract_frame_shapes(frame: np.ndarray) -> FrameShapesType:
+    x, y, z = frame.shape
+    colors = get_frame_colors(frame.reshape(x * y, z))
 
-
-def get_opacity(color: np.ndarray):
-    return color[-1] / 255
-
-
-def generate_layer(img, time_i: float, time_o: float):
-    x, y, z = img.shape
-    colors = get_colors(img.reshape(x * y, z))
-
-    shift, scale = generate_shift_scale(x, y)
-    shapes = []
+    shapes: FrameShapesType = defaultdict(set)
 
     for color in colors:
-        color_mask = add_zeros_frame((img - color).sum(axis=2) == 0)
-        cycles = generate_contours(color_mask)
+        color_mask = add_zeros_frame(~np.any(frame - color, axis=2))
+        labels, amount = ndimage.label(color_mask)  #type: ignore
+        color = tuple(color)
+        for label_number in range(1, amount + 1):
+            shape, shape_shift = normalize_shape(labels == label_number)
+            shapes[shape].add(FormPosColor(shape_shift, color))
 
-        contours = []
-        for cycle in cycles:
-            contour = templates.contour(np.array(cycle, dtype=np.int64)[:, ::-1].tolist())
-            contours.append(contour)
-
-        lottie_color = convert_color_format(color)
-        opacity = get_opacity(color)
-
-        group = templates.group(contours, lottie_color, scale, opacity)
-        shapes.append(group)
-
-    return templates.layer(time_i, time_o, shapes, shift, scale)
+    return shapes
 
 
-def generate_lottie(frames: list, frames_duration: list[float]):
-    layers = []
-    time_offset = 0
-    for frame, duration in zip(frames, frames_duration):
-        img = np.array(frame)
+def extract_animation_shapes(source: SourceAnimationType):
+    durations: tuple[float]
+    shape_dict: AnimationShapesType = defaultdict(list)
 
-        layer = generate_layer(img, time_offset, time_offset + duration)
-        layers.append(layer)
-        time_offset += duration
+    durations, frames = zip(*source)
+    frames_shapes = list(map(extract_frame_shapes, frames))
 
-    return templates.lottie(time_offset, layers)
+    for shape in set().union(*frames_shapes):
+        shape_frames = shape_dict[shape]
+        for frame_shapes in frames_shapes:
+            shape_frames.append(frame_shapes[shape])
+
+    return durations, shape_dict
+
+
+def make_frame_chains(frames: FramesType) -> list[Chain]:
+    final_chains: list[Chain] = []
+
+    for start_i, start_frames in enumerate(frames):
+        while start_frames:
+            chain_variants = [Chain(start_i, start_frame) for start_frame in start_frames]
+
+            for current_frames in frames[start_i + 1:]:
+                for chain in chain_variants:
+                    chain.add_closest_element(current_frames)
+
+            optimal_chain = min(chain_variants, key=lambda i: i.count_frames())
+            final_chains.append(optimal_chain)
+            optimal_chain.clean_variants(frames)
+
+    return final_chains
+
+
+def extract_form_list(source_animation: SourceAnimationType):
+    durations, shape_dict = extract_animation_shapes(source_animation)
+    for shape, frames in shape_dict.items():
+        chains = make_frame_chains(frames)
+        generate_contours(shape)
+        yield chains, shape, durations
+
+
+def open_gif_file(path: str) -> SourceAnimationType:
+    image = Image.open(path)
+    source_animation = []
+
+    for i in range(image.n_frames):  #type: ignore
+        image.seek(i)
+        duration = image.info["duration"] * 60 / 1000
+        frame = image.convert("RGBA")
+        #x, y = frame.size  #.resize((x // 2, y // 2), Image.NEAREST))
+        source_animation.append((duration, np.array(frame)))
+
+    return source_animation
+
+
+from PIL import Image
+
+source = open_gif_file("./Deltarune/Other/spamton_fortnite_cutted.gif")
+
+import matplotlib.pyplot as plt
+
+axes = plt.gca()
+
+for chains, shape, durations in extract_form_list(source):
+    print("shape processed")
+    for chain in chains:
+        s = chain.frames[1]
+        if not s:
+            continue
+        for point in np.array(tuple(shape)) + s.position + 0.2:
+            rectangle = plt.Rectangle(point[::-1], 0.6, 0.6, fc=np.array(s.color) / 255)
+            axes.add_patch(rectangle)
+
+axes.invert_yaxis()
+plt.axis("equal")
+plt.grid()
+plt.show()

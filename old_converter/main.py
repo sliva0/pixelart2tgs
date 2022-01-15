@@ -4,7 +4,7 @@ import gzip
 
 from PIL import Image
 
-import converter
+import old_converter.converter as converter
 
 
 def save_tgs(lottie, filepath):

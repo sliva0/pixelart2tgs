@@ -1,15 +1,15 @@
-lottie = lambda time, layers: {
+lottie = lambda length, name, shift, scale, shapes: {
     "v": "5.7.2",
     "fr": 60,
     "ip": 0,
-    "op": time,
+    "op": length,
     "w": 512,
     "h": 512,
-    "nm": "Made by @sliva0 script",
-    "layers": layers
+    "nm": name,
+    "layers": [layer(shift, scale, shapes, length)]
 }
 
-layer = lambda time_i, time_o, shapes, shift, scale: {
+layer = lambda shift, scale, groups, length: {
     "ty": 4,
     "ks": {
         "p": {
@@ -19,12 +19,12 @@ layer = lambda time_i, time_o, shapes, shift, scale: {
             "k": [100 * scale, 100 * scale]
         }
     },
-    "shapes": shapes,
-    "ip": time_i,
-    "op": time_o
+    "shapes": groups,
+    "ip": 0,
+    "op": length
 }
 
-group = lambda contours, color, scale, opacity: {
+group = lambda contours, scale, color, opacity, position: {
     "ty":
     "gr",
     "it": [
@@ -35,27 +35,20 @@ group = lambda contours, color, scale, opacity: {
         },
         {
             "ty": "st",
-            "c": {
-                "k": color
-            },
-            "o": {
-                "k": 100 * opacity,
-            },
+            "c": color,
+            "o": opacity,
             "w": {
                 "k": 1 / scale
             }
         },
         {
             "ty": "fl",
-            "c": {
-                "k": color
-            },
-            "o": {
-                "k": 100 * opacity
-            }
+            "c": color,
+            "o": opacity
         },
         {
-            "ty": "tr"
+            "ty": "tr",
+            "p": position
         },
     ]
 }
@@ -66,7 +59,23 @@ contour = lambda points: {
         "k": {
             "i": [[]] * len(points),
             "o": [[]] * len(points),
-            "v": points
+            "v": points,
+            "c": True
         }
     }
+}
+
+static_value = lambda value: {
+    "k": value
+}
+
+animated_value = lambda keyframes: {
+    "a": 1,
+    "k": keyframes,
+}
+
+keyframe = lambda time, value: {
+    "t": time,
+    "s": value,
+    "h": 1,
 }
