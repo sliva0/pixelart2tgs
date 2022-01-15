@@ -1,11 +1,11 @@
-lottie = lambda length, name, shift, scale, shapes: {
+lottie = lambda length, label, shift, scale, shapes: {
     "v": "5.7.2",
     "fr": 60,
     "ip": 0,
     "op": length,
     "w": 512,
     "h": 512,
-    "nm": name,
+    "nm": label,
     "layers": [layer(shift, scale, shapes, length)]
 }
 
@@ -57,8 +57,8 @@ contour = lambda points: {
     "ty": "sh",
     "ks": {
         "k": {
-            "i": [[]] * len(points),
-            "o": [[]] * len(points),
+            "i": [()] * len(points),
+            "o": [()] * len(points),
             "v": points,
             "c": True
         }
@@ -75,7 +75,7 @@ animated_value = lambda keyframes: {
 }
 
 keyframe = lambda time, value: {
-    "t": time,
+    "t": round(time, 1),
     "s": value,
     "h": 1,
 }

@@ -74,7 +74,7 @@ def generate_borders(shape: ShapeType):
             if (ax, ay) in shape:
                 continue
             bdir = idir.turn_right()
-            corner = ((pixel + adjacent) - np.array(bdir.value)) / 2
+            corner = (np.array(pixel) + adjacent - bdir.value) / 2
             start = tuple(map(int, corner + shift))
             borders[start].add(bdir)  #type: ignore
 
@@ -105,8 +105,8 @@ def generate_cycle(borders: dict[PosType, set[Direction]]):
     return cycle
 
 
-def generate_contours(claster: np.ndarray):
-    borders = generate_borders(claster)
+def generate_contours(shape: ShapeType):
+    borders = generate_borders(shape)
     cycles: list[list[PosType]] = []
 
     while cycle := generate_cycle(borders):

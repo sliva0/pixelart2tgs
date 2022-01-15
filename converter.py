@@ -1,16 +1,23 @@
 from dataclasses import dataclass
 from collections import defaultdict
+import gzip
+import json
 from typing import Optional
 
 import numpy as np
 from scipy import ndimage
 
 from contour_generator import generate_contours
+import templates
 
 SourceAnimationType = list[tuple[float, np.ndarray]]
 PosType = tuple[int, int]
 ColorType = tuple[int, int, int, int]
 ShapeType = frozenset[PosType]
+
+
+def get_image_sizes(source: SourceAnimationType) -> tuple[int, int]:
+    return source[0][1].shape[:2]
 
 
 def point_square_dist(a: PosType, b: PosType):
@@ -28,6 +35,14 @@ def count_changes(elements: list) -> int:
     return counter
 
 
+def lottify_color(color: ColorType) -> tuple[float, float, float]:
+    return tuple(round(int(i) / 255, 3) for i in color[:3])
+
+
+def lottify_pos(position: PosType) -> tuple[int, int]:
+    return tuple(int(i) for i in position)[::-1]
+
+
 def lottify_value(value_frames: list, time_shift: float, durations: list[float]):
     last_value = None
     keyframes = []
@@ -36,23 +51,26 @@ def lottify_value(value_frames: list, time_shift: float, durations: list[float])
     for (current_value, frame_duration) in zip(value_frames, durations):
         if current_value is not None and current_value != last_value:
             keyframes.append((current_time, current_value))
-        
+            last_value = current_value
+
         current_time += frame_duration
-    
+
     if len(keyframes) == 1:
-        return 
+        return templates.static_value(keyframes[0][1])
+    else:
+        return templates.animated_value([templates.keyframe(*data) for data in keyframes])
 
 
 @dataclass(eq=True, frozen=True)
 class FormPosColor:
-    position: PosType
+    pos: PosType
     color: ColorType
 
     def check_diff(self, other: "FormPosColor"):
-        dist = point_square_dist(self.position, other.position)
+        dist = point_square_dist(self.pos, other.pos)
 
         return (
-            dist != 0,  # if positions are equal, difference is less
+            dist > 0,  # if positions are equal, difference is less
             dist if self.color == other.color else float("inf"),
             dist,
         )
@@ -83,18 +101,31 @@ class Chain:
         frames: list[FormPosColor] = list(filter(bool, self.frames))
 
         opacity_frames = count_changes(map(bool, self.frames))
-        position_frames = count_changes(i.position for i in frames)
+        position_frames = count_changes(i.pos for i in frames)
         color_frames = count_changes(i.color for i in frames)
 
         return opacity_frames * 2 + position_frames * 3 + color_frames * 4
 
     def clean_variants(self, frames: FramesType):
-        for element, frame in zip(self.frames, frames):
+        for element, frame in zip(self.frames, frames[self.keyframe_shift:]):
             if element:
                 frame.remove(element)
 
-    def generate_lottie_group(self, shape: ShapeType, durations: list[float]):
-        ...
+    def generate_group(self, contours: list[list[PosType]], durations: list[float], scale: float):
+        time_shift = sum(durations[:self.keyframe_shift])
+        shifted_durations = durations[self.keyframe_shift:]
+
+        opacity_values = [0] * self.keyframe_shift + [bool(frame) * 100 for frame in self.frames]
+        pos_values = [frame and lottify_pos(frame.pos) for frame in self.frames]
+        color_values = [frame and lottify_color(frame.color) for frame in self.frames]
+
+        opacity = lottify_value(opacity_values, 0, durations)
+        position = lottify_value(pos_values, time_shift, shifted_durations)
+        color = lottify_value(color_values, time_shift, shifted_durations)
+
+        contours = [templates.contour([lottify_pos(i) for i in points]) for points in contours]
+
+        return templates.group(contours, scale, color, opacity, position)
 
 
 def add_zeros_frame(image: np.ndarray) -> np.ndarray:
@@ -165,12 +196,35 @@ def make_frame_chains(frames: FramesType) -> list[Chain]:
     return final_chains
 
 
-def extract_form_list(source_animation: SourceAnimationType):
-    durations, shape_dict = extract_animation_shapes(source_animation)
+def generate_shift_scale(x: int, y: int):
+    scale = 512 / max(x, y)
+    if x > y:
+        shift = [(1 - y / x) * 256, 0.0]
+    else:
+        shift = [0.0, (1 - x / y) * 256]
+    return shift, scale
+
+
+def generate_lottie(source: SourceAnimationType):
+    durations, shape_dict = extract_animation_shapes(source)
+
+    x, y = get_image_sizes(source)
+    shift, scale = generate_shift_scale(x, y)
+    length = round(sum(durations), 1)
+
+    groups = []
+
     for shape, frames in shape_dict.items():
         chains = make_frame_chains(frames)
-        generate_contours(shape)
-        yield chains, shape, durations
+
+        contours = generate_contours(shape)
+
+        groups += [chain.generate_group(contours, durations, scale) for chain in chains]
+
+    return templates.lottie(length, LABEL, shift, scale, groups)
+
+
+from PIL import Image
 
 
 def open_gif_file(path: str) -> SourceAnimationType:
@@ -187,25 +241,15 @@ def open_gif_file(path: str) -> SourceAnimationType:
     return source_animation
 
 
-from PIL import Image
+def save_tgs(lottie, filepath):
+    with gzip.open(filepath, 'wb', compresslevel=9) as out:
+        out.write(json.dumps(lottie, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
+
+LABEL = "Made by t.me/sliva0 script"
 
 source = open_gif_file("./Deltarune/Other/spamton_fortnite_cutted.gif")
+lottie = generate_lottie(source)
 
-import matplotlib.pyplot as plt
+#with open("test.json", "w") as f: f.write(repr(lottie))
 
-axes = plt.gca()
-
-for chains, shape, durations in extract_form_list(source):
-    print("shape processed")
-    for chain in chains:
-        s = chain.frames[1]
-        if not s:
-            continue
-        for point in np.array(tuple(shape)) + s.position + 0.2:
-            rectangle = plt.Rectangle(point[::-1], 0.6, 0.6, fc=np.array(s.color) / 255)
-            axes.add_patch(rectangle)
-
-axes.invert_yaxis()
-plt.axis("equal")
-plt.grid()
-plt.show()
+save_tgs(lottie, "./spamton_fortnite_cutted.tgs")
