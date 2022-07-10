@@ -2,9 +2,9 @@ __pycache__/
 *.py[cod]
 env/
 
-Deltarune/
 *.gif
 *.webp
 *.tgs
-
-tgs_to2.py
+*.ase
+*.png
+*.pdn

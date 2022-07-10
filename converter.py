@@ -1,49 +1,24 @@
-from dataclasses import dataclass
 from collections import defaultdict
 import gzip
 import json
-from typing import Optional
 
 import numpy as np
 from scipy import ndimage
 
 from contour_generator import generate_contours
+from lottie_types import *
 import templates
 
-SourceAnimationType = list[tuple[float, np.ndarray]]
-PosType = tuple[int, int]
-ColorType = tuple[int, int, int, int]
-ShapeType = frozenset[PosType]
 
-
-def get_image_sizes(source: SourceAnimationType) -> tuple[int, int]:
-    return source[0][1].shape[:2]
-
-
-def point_square_dist(a: PosType, b: PosType):
-    return sum((i - j)**2 for i, j in zip(a, b))
-
-
-def count_changes(elements: list) -> int:
-    counter = 0
-    prev, *elements = elements
-
-    for element in elements:
-        if prev != element:
-            counter += 1
-        prev = element
-    return counter
-
-
-def lottify_color(color: ColorType) -> tuple[float, float, float]:
+def lottify_color(color: ColorType) -> LottieColorType:
     return tuple(round(int(i) / 255, 3) for i in color[:3])
 
 
-def lottify_pos(position: PosType) -> tuple[int, int]:
+def lottify_pos(position: PosType) -> LottiePosType:
     return tuple(int(i) for i in position)[::-1]
 
 
-def lottify_value(value_frames: list, time_shift: float, durations: list[float]):
+def lottify_value(value_frames: list, time_shift: float, durations: tuple[float]):
     last_value = None
     keyframes = []
     current_time = time_shift
@@ -61,34 +36,14 @@ def lottify_value(value_frames: list, time_shift: float, durations: list[float])
         return templates.animated_value([templates.keyframe(*data) for data in keyframes])
 
 
-@dataclass(eq=True, frozen=True)
-class FormPosColor:
-    pos: PosType
-    color: ColorType
-
-    def check_diff(self, other: "FormPosColor"):
-        dist = point_square_dist(self.pos, other.pos)
-
-        return (
-            dist > 0,  # if positions are equal, difference is less
-            dist if self.color == other.color else float("inf"),
-            dist,
-        )
-
-
-FrameShapesType = defaultdict[ShapeType, set[FormPosColor]]
-FramesType = list[set[FormPosColor]]
-AnimationShapesType = dict[ShapeType, FramesType]
-ChainFramesType = list[Optional[FormPosColor]]
-
-
 class Chain:
+
     def __init__(self, keyframe_shift: int, first_visible_frame: FormPosColor):
         self.keyframe_shift = keyframe_shift
         self.frames: ChainFramesType = [first_visible_frame]
         self.last_visible_frame = first_visible_frame
 
-    def add_closest_element(self, elements: list[FormPosColor]) -> Optional[FormPosColor]:
+    def add_closest_element(self, elements: set[FormPosColor]):
         if elements:
             new_element = min(elements, key=self.last_visible_frame.check_diff)
             self.last_visible_frame = new_element
@@ -97,21 +52,12 @@ class Chain:
 
         self.frames.append(new_element)
 
-    def count_frames(self):
-        frames: list[FormPosColor] = list(filter(bool, self.frames))
-
-        opacity_frames = count_changes(map(bool, self.frames))
-        position_frames = count_changes(i.pos for i in frames)
-        color_frames = count_changes(i.color for i in frames)
-
-        return opacity_frames * 2 + position_frames * 3 + color_frames * 4
-
     def clean_variants(self, frames: FramesType):
         for element, frame in zip(self.frames, frames[self.keyframe_shift:]):
             if element:
                 frame.remove(element)
 
-    def generate_group(self, contours: list[list[PosType]], durations: list[float], scale: float):
+    def generate_group(self, contours: list[list[PosType]], durations: tuple[float], scale: float):
         time_shift = sum(durations[:self.keyframe_shift])
         shifted_durations = durations[self.keyframe_shift:]
 
@@ -123,9 +69,15 @@ class Chain:
         position = lottify_value(pos_values, time_shift, shifted_durations)
         color = lottify_value(color_values, time_shift, shifted_durations)
 
-        contours = [templates.contour([lottify_pos(i) for i in points]) for points in contours]
+        lottie_contours = [
+            templates.contour([lottify_pos(i) for i in points]) for points in contours
+        ]
 
-        return templates.group(contours, scale, color, opacity, position)
+        return templates.group(lottie_contours, scale, color, opacity, position)
+
+
+def get_image_sizes(source: SourceAnimationType) -> tuple[int, int]:
+    return source[0][1].shape[:2]
 
 
 def add_zeros_frame(image: np.ndarray) -> np.ndarray:
@@ -142,7 +94,7 @@ def get_frame_colors(pixels: np.ndarray):
 def normalize_shape(shape: np.ndarray) -> tuple[frozenset[PosType], PosType]:
     coords = shape.nonzero()
     upper_left_corner = tuple(np.min(coords, axis=1))
-    pixels = np.transpose(coords) - upper_left_corner
+    pixels = np.transpose(coords) - upper_left_corner  # type: ignore
     return frozenset(map(tuple, pixels)), upper_left_corner
 
 
@@ -163,11 +115,13 @@ def extract_frame_shapes(frame: np.ndarray) -> FrameShapesType:
     return shapes
 
 
-def extract_animation_shapes(source: SourceAnimationType):
+def extract_animation_shapes(
+        source: SourceAnimationType) -> tuple[tuple[float], AnimationShapesType]:
     durations: tuple[float]
-    shape_dict: AnimationShapesType = defaultdict(list)
+    frames: tuple[np.ndarray]
+    durations, frames = zip(*source)  # type: ignore
 
-    durations, frames = zip(*source)
+    shape_dict: AnimationShapesType = defaultdict(list)
     frames_shapes = list(map(extract_frame_shapes, frames))
 
     for shape in set().union(*frames_shapes):
@@ -183,20 +137,18 @@ def make_frame_chains(frames: FramesType) -> list[Chain]:
 
     for start_i, start_frames in enumerate(frames):
         while start_frames:
-            chain_variants = [Chain(start_i, start_frame) for start_frame in start_frames]
+            chain = Chain(start_i, next(iter(start_frames)))
 
             for current_frames in frames[start_i + 1:]:
-                for chain in chain_variants:
-                    chain.add_closest_element(current_frames)
+                chain.add_closest_element(current_frames)
 
-            optimal_chain = min(chain_variants, key=lambda i: i.count_frames())
-            final_chains.append(optimal_chain)
-            optimal_chain.clean_variants(frames)
+            final_chains.append(chain)
+            chain.clean_variants(frames)
 
     return final_chains
 
 
-def generate_shift_scale(x: int, y: int):
+def generate_shift_scale(x: int, y: int) -> tuple[list[float], float]:
     scale = 512 / max(x, y)
     if x > y:
         shift = [(1 - y / x) * 256, 0.0]
@@ -227,7 +179,7 @@ def generate_lottie(source: SourceAnimationType):
 from PIL import Image
 
 
-def open_gif_file(path: str) -> SourceAnimationType:
+def open_gif_file(str) -> SourceAnimationType:
     image = Image.open(path)
     source_animation = []
 
@@ -245,11 +197,27 @@ def save_tgs(lottie, filepath):
     with gzip.open(filepath, 'wb', compresslevel=9) as out:
         out.write(json.dumps(lottie, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
 
+
+from pathlib import Path
+
 LABEL = "Made by t.me/sliva0 script"
 
-source = open_gif_file("./Deltarune/Other/spamton_fortnite_cutted.gif")
-lottie = generate_lottie(source)
+paths = [
+    r"Deltarune\Queen\Queen_drinking_wineglass.gif",
+    r"Deltarune\Queen\Queen_laugh.gif",
+    r"Deltarune\Queen\Queen_rotating_wineglass.gif",
+]
+paths = [r"Deltarune\gf1.gif"]
+print(paths)
 
-#with open("test.json", "w") as f: f.write(repr(lottie))
+for path in paths:
+    path = Path(path)
+    out_path = path.parent.parent / (path.stem + ".tgs")
+    source = open_gif_file(path)
 
-save_tgs(lottie, "./spamton_fortnite_cutted.tgs")
+    print(f"generating {path.name}")
+    lottie = generate_lottie(source)
+
+    #with open("test.json", "w") as f: f.write(repr(lottie))
+    print(f"saving {path.name}")
+    save_tgs(lottie, out_path)

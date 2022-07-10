@@ -4,7 +4,7 @@ import gzip
 
 from PIL import Image
 
-import old_converter.converter as converter
+import converter
 
 
 def save_tgs(lottie, filepath):
@@ -12,7 +12,11 @@ def save_tgs(lottie, filepath):
         out.write(json.dumps(lottie, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
 
 
-paths = ["./Deltarune/Other/spamton_fortnite_cutted.gif"] #sys.argv[1:]
+paths = [
+    r"Deltarune\Queen\Queen_drinking_wineglass.gif",
+    r"Deltarune\Queen\Queen_laugh.gif",
+    r"Deltarune\Queen\Queen_rotating_wineglass.gif",
+]
 print(paths)
 
 for path in paths:
