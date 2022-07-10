@@ -13,9 +13,7 @@ LottieColorType = tuple[float, float, float]
 
 ShapeType = frozenset[PosType]
 
-
-def squared_point_distance(a: PosType, b: PosType) -> int:
-    return sum((i - j)**2 for i, j in zip(a, b))
+ContourType = list[PosType]
 
 
 @dataclass(eq=True, frozen=True)
@@ -23,8 +21,11 @@ class FormPosColor:
     pos: PosType
     color: ColorType
 
+    def squared_distance(self, other: "FormPosColor") -> int:
+        return sum((i - j)**2 for i, j in zip(self.pos, other.pos))
+
     def check_diff(self, other: "FormPosColor"):
-        dist = squared_point_distance(self.pos, other.pos)
+        dist = self.squared_distance(other)
 
         return (
             dist > 0,  # if positions are equal, difference is less
