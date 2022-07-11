@@ -1,5 +1,5 @@
 import templates
-from lottie_types import *
+from converter_types import *
 
 
 def lottify_color(color: ColorType) -> LottieColorType:
@@ -10,7 +10,7 @@ def lottify_pos(position: PosType) -> LottiePosType:
     return tuple(map(int, position))[::-1]
 
 
-def lottify_value(value_frames: list, time_shift: float, durations: tuple[float]):
+def lottify_value(value_frames: list, time_shift: float, durations: DurationsType):
     last_value = None
     keyframes = []
     current_time = time_shift
@@ -45,7 +45,7 @@ class Chain:
 
         self.frames.append(closest_element)
 
-    def generate_group(self, contours: list[ContourType], durations: tuple[float], scale: float):
+    def generate_group(self, contours: list[ContourType], durations: DurationsType, scale: float):
         time_shift = sum(durations[:self.keyframe_shift])
         shifted_durations = durations[self.keyframe_shift:]
 

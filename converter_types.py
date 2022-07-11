@@ -12,8 +12,8 @@ LottiePosType = tuple[int, int]
 LottieColorType = tuple[float, float, float]
 
 ShapeType = frozenset[PosType]
-
 ContourType = list[PosType]
+DurationsType = tuple[float, ...]
 
 
 @dataclass(eq=True, frozen=True)
