@@ -1,3 +1,5 @@
+from scipy import ndimage
+
 from converter_types import *
 
 
@@ -27,7 +29,7 @@ def extract_frame_shapes(frame: np.ndarray) -> FrameShapesType:
 
     for color in colors:
         color_mask = add_zeros_frame(~np.any(frame - color, axis=2))
-        labels, amount = ndimage.label(color_mask)  #type: ignore
+        labels, amount = ndimage.label(color_mask)
         color = tuple(color)
         for label_number in range(1, amount + 1):
             shape, shape_shift = normalize_shape(labels == label_number)
@@ -37,9 +39,7 @@ def extract_frame_shapes(frame: np.ndarray) -> FrameShapesType:
 
 
 def generate_shapes(source: SourceAnimationType) -> tuple[DurationsType, AnimationShapesType]:
-    durations: DurationsType
-    frames: tuple[np.ndarray]
-    durations, frames = zip(*source)  # type: ignore
+    durations, frames = source
 
     shape_dict: AnimationShapesType = defaultdict(list)
     frames_shapes = list(map(extract_frame_shapes, frames))

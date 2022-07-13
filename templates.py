@@ -1,4 +1,5 @@
-def lottie(length: float, label: str, shift: tuple[float, float], scale: float, shapes: list[dict]):
+def lottie(length: float, label: str, shift: tuple[float, float], scale: float,
+           shapes: list[dict]):
     return {
         "v": "5.7.2",
         "fr": 60,
@@ -11,7 +12,8 @@ def lottie(length: float, label: str, shift: tuple[float, float], scale: float, 
     }
 
 
-def layer(shift: tuple[float, float], scale: float, groups: list[dict], length: float):
+def layer(shift: tuple[float, float], scale: float, groups: list[dict],
+          length: float):
     return {
         "ty": 4,
         "ks": {

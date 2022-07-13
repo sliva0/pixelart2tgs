@@ -10,7 +10,9 @@ def lottify_pos(position: PosType) -> LottiePosType:
     return tuple(map(int, position))[::-1]
 
 
-def lottify_value(value_frames: list, time_shift: float, durations: DurationsType):
+def lottify_value(value_frames: list, time_shift: float,
+                  durations: DurationsType):
+
     last_value = None
     keyframes = []
     current_time = time_shift
@@ -23,9 +25,10 @@ def lottify_value(value_frames: list, time_shift: float, durations: DurationsTyp
         current_time += frame_duration
 
     if len(keyframes) == 1:
-        return templates.static_value(keyframes[0][1])
+        return templates.static_value(last_value)
     else:
-        return templates.animated_value([templates.keyframe(*data) for data in keyframes])
+        return templates.animated_value(
+            [templates.keyframe(*data) for data in keyframes])
 
 
 class Chain:
@@ -37,7 +40,9 @@ class Chain:
 
     def take_closest_element(self, elements: set[FormPosColor]):
         if elements:
-            closest_element = min(elements, key=self.last_visible_frame.check_diff)
+            key = self.last_visible_frame.check_diff
+            closest_element = min(elements, key=key)
+
             elements.remove(closest_element)
             self.last_visible_frame = closest_element
         else:
@@ -45,23 +50,37 @@ class Chain:
 
         self.frames.append(closest_element)
 
-    def generate_group(self, contours: list[ContourType], durations: DurationsType, scale: float):
+    def generate_group(self, contours: list[ContourType],
+                       durations: DurationsType, scale: float):
+
         time_shift = sum(durations[:self.keyframe_shift])
         shifted_durations = durations[self.keyframe_shift:]
 
-        opacity_values = [0] * self.keyframe_shift + [bool(frame) * 100 for frame in self.frames]
-        pos_values = [frame and lottify_pos(frame.pos) for frame in self.frames]
-        color_values = [frame and lottify_color(frame.color) for frame in self.frames]
+        opacity_values = [0] * self.keyframe_shift + [(100 if frame else 0)
+                                                      for frame in self.frames]
+        pos_values = [
+            frame and lottify_pos(frame.pos) for frame in self.frames
+        ]
+        color_values = [
+            frame and lottify_color(frame.color) for frame in self.frames
+        ]
 
         opacity = lottify_value(opacity_values, 0, durations)
         position = lottify_value(pos_values, time_shift, shifted_durations)
         color = lottify_value(color_values, time_shift, shifted_durations)
 
         lottie_contours = [
-            templates.contour(list(map(lottify_pos, contour))) for contour in contours
+            templates.contour(list(map(lottify_pos, contour)))
+            for contour in contours
         ]
 
-        return templates.group(lottie_contours, scale, color, opacity, position)
+        return templates.group(
+            lottie_contours,
+            scale,
+            color,
+            opacity,
+            position,
+        )
 
 
 def generate_chains(frames: FramesType) -> list[Chain]:

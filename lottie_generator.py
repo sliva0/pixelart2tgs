@@ -7,10 +7,10 @@ import templates
 
 
 def get_image_sizes(source: SourceAnimationType) -> tuple[int, int]:
-    return source[0][1].shape[:2]
+    return source[1][0].shape[:2]
 
 
-def shift_and_scale(source: SourceAnimationType) -> tuple[tuple[float, float], float]:
+def shift_and_scale(source: SourceAnimationType):
     x, y = get_image_sizes(source)
 
     scale = 512 / max(x, y)
@@ -33,6 +33,9 @@ def generate_lottie(source: SourceAnimationType, label: str):
         contours = generate_contours(shape)
         chains = generate_chains(frames)
 
-        groups += [chain.generate_group(contours, durations, scale) for chain in chains]
+        groups += [
+            chain.generate_group(contours, durations, scale)
+            for chain in chains
+        ]
 
     return templates.lottie(length, label, shift, scale, groups)

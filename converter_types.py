@@ -1,9 +1,8 @@
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Optional
-import numpy as np
 
-SourceAnimationType = list[tuple[float, np.ndarray]]
+import numpy as np
 
 PosType = tuple[int, int]
 ColorType = tuple[int, int, int, int]
@@ -13,7 +12,9 @@ LottieColorType = tuple[float, float, float]
 
 ShapeType = frozenset[PosType]
 ContourType = list[PosType]
-DurationsType = tuple[float, ...]
+DurationsType = list[float]
+
+SourceAnimationType = tuple[DurationsType, list[np.ndarray]]
 
 
 @dataclass(eq=True, frozen=True)

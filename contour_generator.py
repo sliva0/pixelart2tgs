@@ -1,5 +1,6 @@
 from collections import defaultdict
 from enum import Enum
+
 import numpy as np
 
 from converter_types import *
@@ -47,10 +48,7 @@ class Direction(Enum):
             bdir = bdir.turn_left()
         return bdir
 
-    def get_closest(self, dirs: set["Direction"], priority: str) -> "Direction":
-        if not dirs:
-            raise ValueError("Something went terribly wrong in borders generation")
-
+    def get_closest(self, dirs: set["Direction"], priority: str):
         if priority == "left":
             bdir = self.get_next_left(dirs)
         else:
@@ -97,7 +95,8 @@ def generate_cycle(borders: BordersType) -> Optional[ContourType]:
 
     dir_now = last_dir = Direction.RT.get_next(borders, start)
     point_now += dir_now
-    cycle = [point_now]  # without start point because it will be last element of the cycle
+    cycle = [point_now]
+    # without start point because it will be last element of the cycle
 
     while start != point_now:
         dir_now = dir_now.get_next(borders, point_now)
