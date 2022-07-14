@@ -11,6 +11,10 @@ def get_image_sizes(source: SourceAnimationType) -> tuple[int, int]:
 
 
 def shift_and_scale(source: SourceAnimationType):
+    """
+    Generates shift of the whole animation to center it
+    and scale to fill most of the avaliable sticker's space.
+    """
     x, y = get_image_sizes(source)
 
     scale = 512 / max(x, y)
@@ -22,6 +26,9 @@ def shift_and_scale(source: SourceAnimationType):
 
 
 def generate_lottie(source: SourceAnimationType, label: str):
+    """
+    Generates final lottie json by applying functions from all modules.
+    """
     durations, shape_dict = generate_shapes(source)
 
     shift, scale = shift_and_scale(source)

@@ -28,8 +28,8 @@ SIZE_WARNING_TEMPLATE = (
     "resolution and/or number of frames of the original file and try again.")
 
 LENGTH_WARNING_TEMPLATE = (
-    f'Warning: file {{}} is longer than {MAX_S} seconds, so '
-    'it will be sped up to fit within telegram limits.')
+    f'Warning: file "{{}}" is longer than {MAX_S} seconds, '
+    'so it will be sped up to fit within telegram limits.')
 
 DESCRIPTION = """
 simple .gif to .tgs converter utility

@@ -7,16 +7,20 @@ from converter_types import *
 
 BordersType = dict[PosType, set["Direction"]]
 
-DEFAULT_PRIORITY_ROTATION_DIR = "right"
-
 
 class Direction(Enum):
+    """
+    Enumeration of all 4 possible directions.
+    """
     UP = (-1, 0)
-    RT = (0, 1)
-    DN = (1, 0)
-    LT = (0, -1)
+    RT = (0, 1)  # RighT
+    DN = (1, 0)  # DowN
+    LT = (0, -1)  # LefT
 
     def __radd__(self, other: PosType) -> PosType:
+        """
+        Moves position on 1 pixel in direction.
+        """
         x, y = self.value
         return (other[0] + x, other[1] + y)
 
@@ -36,73 +40,98 @@ class Direction(Enum):
             self.LT: self.DN,
         }[self]
 
-    def get_next_left(self, dirs: set["Direction"]) -> "Direction":
-        bdir = self.turn_left()
-        while bdir not in dirs:
-            bdir = bdir.turn_right()
-        return bdir
-
     def get_next_right(self, dirs: set["Direction"]) -> "Direction":
-        bdir = self.turn_right()
-        while bdir not in dirs:
-            bdir = bdir.turn_left()
+        """
+        Get the rightmost direction from set.
+        """
+        bdir = self.turn_right()  # starts from trying to rotate right
+        while bdir not in dirs:  # while direction is not present
+            bdir = bdir.turn_left()  # tries to take less right directions
         return bdir
 
-    def get_closest(self, dirs: set["Direction"], priority: str):
-        if priority == "left":
-            bdir = self.get_next_left(dirs)
-        else:
-            bdir = self.get_next_right(dirs)
-        dirs.remove(bdir)
-        return bdir
+    def take_closest(self, dirs: set["Direction"]) -> "Direction":
+        """
+        Takes (gets and removes) optimal direction from set.
+        """
+        next_dir = self.get_next_right(dirs)
+        dirs.remove(next_dir)
+        return next_dir
 
-    def get_next(
-        self,
-        borders: BordersType,
-        point: PosType,
-        priority: str = DEFAULT_PRIORITY_ROTATION_DIR,
-    ) -> "Direction":
+    def get_next(self, borders: BordersType, point: PosType):
+        """
+        Selects a new direction of movement along the borders
+        and shifts the point in it.
+        """
         dirs = borders[point]
-        dir_now = self.get_closest(dirs, priority)
+        dir_now = self.take_closest(dirs)
         if not dirs:
             del borders[point]
-        return dir_now
+        return point + dir_now, dir_now
 
 
 def generate_borders(shape: ShapeType) -> BordersType:
+    """
+    Collects sets of shape arrow borders.
+    ``` plain
+                                    0    1    2       {
+    {                             +-------------        (0, 1): {>, },
+      (0, 1),      [_ # _]      0 |      + -> +         (0, 2): {v, },
+      (1, 0),  ->  [# # _]  ->    |      ^    v   ->    (1, 2): {v, },
+      (1, 1),      [_ _ _]      1 | + -> +    +         (2, 2): {<, },
+    }                             | ^         v         ...
+                                2 | + <- + <- +       } 
+    ```
+    Second and third steps are drawn for clarity, function converts
+    positions set directly to a dict with keys - positions
+    and values - sets of `Direction`s of arrow borders from that positions.
+
+    """
     shift = (0.5, 0.5)
     borders: BordersType = defaultdict(set)
 
+    # iterates over all shape pixels
     for pixel in shape:
-        for idir in Direction:
-            ax, ay = adjacent = pixel + idir
-            if (ax, ay) in shape:
-                continue
+        # iterates over all neighbour pixels
+        # by iterating over all directions and adding them to the pixel
+        for adj_dir in Direction:
+            adjacent = pixel + adj_dir
+            if adjacent in shape: # if neighbour is present
+                continue # skip drawing border beetween them
 
-            bdir = idir.turn_right()
-            corner = (np.array(pixel) + adjacent - bdir.value) / 2
-            start: PosType = tuple(map(int, corner + shift))
-            borders[start].add(bdir)
+            # direction of border arrow beetween current pixel
+            # and empty neighbour pixel
+            border_dir = adj_dir.turn_right()
+
+            # calculates start point of arrow 
+            start = (np.array(pixel) + adjacent - border_dir.value) / 2 + shift
+
+            start: PosType = tuple(map(int, start))
+            borders[start].add(border_dir)
 
     return borders
 
 
-def generate_cycle(borders: BordersType) -> Optional[ContourType]:
-    try:
-        start = point_now = next(iter(borders))
-    except StopIteration:
-        return None
+def generate_cycle(borders: BordersType) -> ContourType:
+    """
+    Assembles the cycle by going through the arrow borders.
+    """
+    # gets any start position
+    start = point_now = next(iter(borders))
 
-    dir_now = last_dir = Direction.RT.get_next(borders, start)
-    point_now += dir_now
+    # moves one step on border to get first direction
+    point_now, dir_now = last_dir = Direction.RT.get_next(borders, start)
+
+    # creates cycle without start point
+    # because it will be last element of the cycle
     cycle = [point_now]
-    # without start point because it will be last element of the cycle
 
     while start != point_now:
-        dir_now = dir_now.get_next(borders, point_now)
-        point_now += dir_now
+        point_now, dir_now = dir_now.get_next(borders, point_now)
 
+        # if direction didn't change
         if last_dir == dir_now:
+            # replaces last point in cycle
+            # to delete useless point on straight line
             cycle[-1] = point_now
         else:
             cycle.append(point_now)
@@ -113,10 +142,13 @@ def generate_cycle(borders: BordersType) -> Optional[ContourType]:
 
 
 def generate_contours(shape: ShapeType) -> list[ContourType]:
+    """
+    Generates all shape contours.
+    """
     borders = generate_borders(shape)
     cycles: list[ContourType] = []
 
-    while cycle := generate_cycle(borders):
-        cycles.append(cycle)
-
+    while borders:
+        cycles.append(generate_cycle(borders))
+        
     return cycles
