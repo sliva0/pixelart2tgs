@@ -8,3 +8,5 @@ env/
 *.ase
 *.png
 *.pdn
+
+!/images/*.gif

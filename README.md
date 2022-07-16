@@ -3,7 +3,7 @@
 Simple .gif to .tgs converter cli utility.
 
 ![Source GIF](/images/ralsei.gif)
-![Tg demonstation](/images/spinner.mp4)
+![Tg demonstation](/images/tg.gif)
 
 ## Usage examples
 
