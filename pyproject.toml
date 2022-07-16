@@ -5,13 +5,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pixelart2tgs"
-version = "1.0.0"
+version = "1.0.1"
 authors = [
   { name="sliva0", email="sliva0mk@gmail.com" },
 ]
 description = "Simple .gif to .tgs converter cli utility"
 readme = "README.md"
-license = "MIT License"
+license = { text = "MIT License" }
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -27,3 +27,4 @@ dependencies = [
 
 [project.urls]
 "Homepage" = "https://github.com/sliva0/pixelart2tgs"
+"Author's telegram" = "https://t.me/sliva0"
