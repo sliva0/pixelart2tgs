@@ -8,8 +8,8 @@ import traceback
 import numpy as np
 from PIL import Image
 
-from converter_types import *
-from lottie_generator import generate_lottie
+from .converter_types import *
+from .lottie_generator import generate_lottie
 
 SIZE_64KB = 1 << 16
 SIZE_1MB = 1 << 20
@@ -32,7 +32,7 @@ LENGTH_WARNING_TEMPLATE = (
     'so it will be sped up to fit within telegram limits.')
 
 DESCRIPTION = """
-simple .gif to .tgs converter utility
+Simple .gif to .tgs converter cli utility.
 
 usage examples:
 $ %(prog)s -i input.gif
@@ -127,6 +127,7 @@ class IOFiles(argparse.Action):
 
 def get_args():
     parser = argparse.ArgumentParser(
+        prog="pixelart2tgs",
         description=DESCRIPTION,
         usage="%(prog)s -i infile [outfile] [-i ...] [-y] [-l LABEL]",
         formatter_class=argparse.RawTextHelpFormatter,

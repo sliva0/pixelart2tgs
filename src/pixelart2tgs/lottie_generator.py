@@ -1,9 +1,9 @@
-from shape_generator import generate_shapes
-from contour_generator import generate_contours
-from chain_generator import generate_chains
+from .converter_types import *
+from . import templates
 
-from converter_types import *
-import templates
+from .shape_generator import generate_shapes
+from .contour_generator import generate_contours
+from .chain_generator import generate_chains
 
 
 def get_image_sizes(source: SourceAnimationType) -> tuple[int, int]:

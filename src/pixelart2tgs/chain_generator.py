@@ -1,5 +1,5 @@
-import templates
-from converter_types import *
+from .converter_types import *
+from . import templates
 
 
 def lottify_pos(position: PosType) -> LottiePosType:

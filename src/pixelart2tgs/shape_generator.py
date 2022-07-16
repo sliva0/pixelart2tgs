@@ -1,6 +1,6 @@
 from scipy import ndimage
 
-from converter_types import *
+from .converter_types import *
 
 
 def get_frame_colors(frame: np.ndarray) -> np.ndarray:

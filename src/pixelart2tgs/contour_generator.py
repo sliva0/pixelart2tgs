@@ -3,7 +3,7 @@ from enum import Enum
 
 import numpy as np
 
-from converter_types import *
+from .converter_types import *
 
 BordersType = dict[PosType, set["Direction"]]
 
