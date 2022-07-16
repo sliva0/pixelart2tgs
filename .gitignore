@@ -1,6 +1,8 @@
 __pycache__/
 *.py[cod]
 env/
+dist/
+*.egg-info/
 
 *.gif
 *.webp

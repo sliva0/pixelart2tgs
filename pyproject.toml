@@ -11,7 +11,7 @@ authors = [
 ]
 description = "Simple .gif to .tgs converter cli utility"
 readme = "README.md"
-license = { file="LICENSE.txt" }
+license = "MIT License"
 requires-python = ">=3.8"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -25,7 +25,5 @@ dependencies = [
     "scipy >= 1.8.1"
 ]
 
-
 [project.urls]
 "Homepage" = "https://github.com/sliva0/pixelart2tgs"
-"Bug Tracker" = "https://github.com/sliva0/pixelart2tgs/issues"

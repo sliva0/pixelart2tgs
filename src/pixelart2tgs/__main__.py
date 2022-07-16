@@ -182,10 +182,10 @@ def main():
             source = open_gif_file(infile)
 
         with error_handling("Data conversion"):
-            lottie = generate_lottie(source, args.label)
+            lottie = generate_lottie(source, args.label)  # type: ignore
 
         with error_handling("File saving"):
-            save_tgs(lottie, outfile)
+            save_tgs(lottie, outfile)  # type: ignore
 
         print(f'File "{outfile}" saved.')
 
