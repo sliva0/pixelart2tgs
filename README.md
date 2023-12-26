@@ -2,8 +2,8 @@
 
 Simple .gif to .tgs converter cli utility.
 
-![Source GIF](https://github.com/sliva0/pixelart2tgs/raw/master/images/ralsei.gif)
-![Tg demonstation](https://github.com/sliva0/pixelart2tgs/raw/master/images/tg.gif)
+![Source GIF]![Screenshot_2023_1219_003346](https://github.com/Deyvey/codespaces-blank/assets/88993196/a6aec8aa-95e2-4a64-a1fe-2dc4ff97c723)
+![Tg demonstation](https://github.com/liebert/pixelart2tgs/raw/master/images/tg.gif)
 
 
 ## Warning
