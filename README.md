@@ -8,10 +8,17 @@ Simple .gif to .tgs converter cli utility.
 
 ## Warning
 
-After [update of Telegram with the addition of video stickers][UPD], this project lost all practical meaning. If you need to make animated stickers from GIFs after January 2022, use [tgradish][TGR].
+This project was developed before [Telegram update][UPD] added WebM format for stickers and emojis.
+
+Before using this project, consider using WebM instead - it can handle higher resolution and framerate,
+and I also wrote a utility for working with it: [tgradish][TGR].
+
+You might still want to use this project if you want to make scalable animated pixel art emojis -  see [example][RGI].
 
 [UPD]: https://telegram.org/blog/video-stickers-better-reactions
 [TGR]: https://github.com/sliva0/tgradish
+[RGI]: https://github.com/sliva0/pixelart2tgs/issues/7
+
 
 ## Some not so user friendly alternatives
 
@@ -42,7 +49,7 @@ input.gif -> input.tgs
 ``` console
 $ pixelart2tgs -i first.gif -i second.gif sticker.tgs -y
 first.gif -> first.tgs
-second.gif -> "sticker.tgs
+second.gif -> sticker.tgs
 ```
 
 ## License
